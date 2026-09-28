@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Environment / secrets
+.env
+
+# Raw & processed data (matches your existing repo's convention)
+data/
+
+# Generated outputs
+outputs/
