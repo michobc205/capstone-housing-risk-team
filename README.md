@@ -50,11 +50,36 @@ Merges both repos' Zillow ZHVI + FRED `MORTGAGE30US` ingest pipelines. Key decis
 - **Month storage convention:** adopts month-end dates (Zillow's native format), removing the need for a `date_trunc`-based join
 - **The join itself stays in SQL** (the Postgres-variant's differentiator), now simplified to a plain equality join since both tables share one date convention
 
+**Result:** the joined table `county_month_joined` (Zillow as the spine, LEFT JOIN to `mortgage_monthly`) holds 709,996 county-months across 3,071 counties, with no rows or counties dropped by the join.
+
+**Aggregation sensitivity:** the weekly-to-monthly FRED resample uses `.mean()` at month-end. A separate check comparing `.mean()` against `.last()` found the two nearly identical in level (correlation 0.9992) but disagreeing on the direction of the month-over-month change in 111 of 665 months, so the choice matters for the rate-of-change feature and is documented here rather than left implicit.
+
 **Validated two independent ways:** once via the notebook's own pandas-based provenance check, and again via `sql/phase1_validation.sql`'s pure-SQL recomputation — both agree, and both match the project's documented baseline figures (Test window: 52,087 rows, 8.15% positive rate, exact match).
 
-### Phases 2-7 — Not yet started
+### Phase 2 — Chronological Split + CV Folds ✅ Complete
 
-Split/CV, EDA, feature engineering, modeling, evaluation, and the communication dashboard are still to be merged.
+**Notebook:** `notebooks/02_phase2_split_cv.ipynb`
+**SQL:** `sql/003_phase2_split.sql`, `sql/003b_cv_fold_membership.sql` (plus `sql/004_phase3_eda.sql` and `sql/005_phase4_features.sql`, which build the label and feature tables the fold view reads)
+
+Merges the SQL variant's single chronological split with the pandas repo's cross-validation folds. Key decisions:
+
+- **Split:** Train through 2021-09-30, one-quarter Embargo (2021-Q4, excluded from both sides), Test 2022-01-01 to 2026-03-31, and anything later is labelled `unassigned` rather than silently dropped
+- **CV folds:** the pandas repo's 11 expanding-window folds (validation years 2010-2020, four quarters each) are stored in a `cv_folds` table, all inside the Train window; folds never touch Embargo or Test
+- **Fold membership:** the `cv_fold_rows` view assigns each Train county-quarter to each fold as `train` or `val`, converting quarter-start dates to quarter-end to match the fold boundaries
+- **NULL ZHVI months:** some counties have missing ZHVI months mid-series, so quarterly snapshots take each county's last month *with a value* (mirroring pandas `groupby().last()`), and labels are dropped where the previous quarter is not the calendar quarter before
+
+**Validated:**
+
+- The split covers all 709,996 rows; the 1,043 rows above the earlier documented monthly counts are exactly the NULL-ZHVI months (1,040 Train, 3 Test)
+- Modeling table: Train 165,269 rows (4.92% positive), Embargo 3,020, Test 51,986 (8.11% positive), close to the documented Phase 0 figures
+- Every validation fold has at least 71 positives (the minimum required is 20); pooled validation prevalence is about 3.8%
+- No Embargo or Test rows appear in any fold
+
+**Open items:** confirm with Jolenn what limits her pandas test set to 2,880 counties per quarter, and that she is happy with folds that have no embargo gap.
+
+### Phases 3-7 — Not yet merged
+
+EDA, feature engineering, modeling, evaluation, and the communication dashboard are still to be merged. The SQL for EDA (`004`) and features (`005`) is already in the repo as a building block for Phase 2's fold membership, but the side-by-side comparison for those phases has not been done.
 
 ## Setup
 
@@ -84,6 +109,8 @@ psql -U postgres housing_risk_team -f sql/001_schema.sql
 ```
 
 Then run the notebooks in order: `01` → `02` → ...
+
+For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds; `004` is optional for Phase 2). Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`.
 
 ## Collaboration
 
