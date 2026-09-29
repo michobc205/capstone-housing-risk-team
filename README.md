@@ -74,6 +74,7 @@ Merges the SQL variant's single chronological split with the pandas repo's cross
 - Modeling table: Train 165,269 rows (4.92% positive), Embargo 3,020, Test 51,986 (8.11% positive), close to the documented Phase 0 figures
 - Every validation fold has at least 71 positives (the minimum required is 20); pooled validation prevalence is about 3.8%
 - No Embargo or Test rows appear in any fold
+- Reproduced on a second machine (PostgreSQL 15, Jolenn's laptop) with identical modeling-table counts and all 22 fold rows matching
 
 **Open items:** confirm with Jolenn what limits her pandas test set to 2,880 counties per quarter, and that she is happy with folds that have no embargo gap.
 
@@ -110,7 +111,7 @@ psql -U postgres housing_risk_team -f sql/001_schema.sql
 
 Then run the notebooks in order: `01` → `02` → ...
 
-For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds; `004` is optional for Phase 2). Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`.
+For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds; `004` is optional for Phase 2). `005` drops the `cv_fold_rows` view when it rebuilds the modeling table, so re-run `003b` after every run of `005`. Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`.
 
 ## Collaboration
 
