@@ -107,7 +107,8 @@ WHERE prev_zhvi IS NULL
 -- immediate trend signal available going into the predicted quarter. This is
 -- a modeling choice, not a derivation from Phase 0 -- worth revisiting in
 -- Phase 5 if 3-month or 6-month momentum interacts more informatively.
-DROP TABLE IF EXISTS quarterly_modeling_table;
+-- CASCADE also drops the cv_fold_rows view (from 003b), which reads this table; re-run 003b afterwards.
+DROP TABLE IF EXISTS quarterly_modeling_table CASCADE;
 CREATE TABLE quarterly_modeling_table AS
 SELECT
     l.county_fips,
