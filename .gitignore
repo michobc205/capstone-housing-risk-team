@@ -214,6 +214,15 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Mac Stuff
+.DS_Store
+
+# vscode Stuff
+.vscode
+
+# Personal 
+private/
+
 # Streamlit
 .streamlit/secrets.toml
 
