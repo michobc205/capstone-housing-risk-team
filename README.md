@@ -26,7 +26,7 @@ methodology and combining the best of both along the way.
 data/         raw and processed data (not tracked in git)
 notebooks/    merged, phase-by-phase notebooks
 sql/          SQL schema and query files backing the notebooks
-outputs/      exported charts and persisted results (JSON, CSV, PNG)
+outputs/      exported charts and persisted results (JSON, CSV, PNG); only files named phase* are tracked in git
 docs/         business framing and team reference documentation
 ```
 
@@ -59,7 +59,7 @@ Merges both repos' Zillow ZHVI + FRED `MORTGAGE30US` ingest pipelines. Key decis
 ### Phase 2 — Chronological Split + CV Folds ✅ Complete
 
 **Notebook:** `notebooks/02_phase2_split_cv.ipynb`
-**SQL:** `sql/003_phase2_split.sql`, `sql/003b_cv_fold_membership.sql` (plus `sql/004_phase3_eda.sql` and `sql/005_phase4_features.sql`, which build the label and feature tables the fold view reads)
+**SQL:** `sql/003_phase2_split.sql`, `sql/003b_cv_fold_membership.sql` (plus `sql/005_phase4_features.sql`, which builds the modeling table the fold view reads)
 
 Merges the SQL variant's single chronological split with the pandas repo's cross-validation folds. Key decisions:
 
@@ -78,9 +78,33 @@ Merges the SQL variant's single chronological split with the pandas repo's cross
 
 **Open items:** the pandas repo's test set has 48,960 rows against 51,986 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team still has to choose which convention to carry forward, and to confirm the folds may have no embargo gap.
 
-### Phases 3-7 — Not yet merged
+### Phase 3 — EDA: Lag Sweep and Reverse-Causation Check ✅ Done (reproduction on the second machine pending)
 
-EDA, feature engineering, modeling, evaluation, and the communication dashboard are still to be merged. The SQL for EDA (`004`) and features (`005`) is already in the repo as a building block for Phase 2's fold membership, but the side-by-side comparison for those phases has not been done.
+**Notebook:** `notebooks/03_phase3_eda_merged.ipynb`
+**SQL:** `sql/004_phase3_eda.sql`
+**Results:** `outputs/phase3_lag_correlation.csv`, `outputs/phase3_reverse_causation.csv`
+
+Merges the SQL variant's quarterly label and lag correlation with the pandas repo's EDA (p-values, confidence intervals, reverse-causation check). Key decisions:
+
+- **Rate-of-change in percentage points:** `rate(t) - rate(t - lag)`, as in the pandas repo. The earlier SQL used relative change, which gave a weaker 12-month correlation (-0.034 against -0.050)
+- **Preceding-quarter alignment:** each label is paired with the rate change at the end of the quarter before it, which is what predicting one quarter ahead requires. The pandas EDA paired it with the same quarter; that version is kept only to reproduce its numbers
+- **Label:** a decline strictly greater than 2%, using each county's last month with a value in a quarter (same missing-month handling as Phase 2)
+- **Lag:** 12 months
+- **Reverse-causation check in SQL:** two variants, one with the full mortgage-rate history (as in the pandas notebook) and one using only rates up to the end of Train
+
+**Validated:**
+
+- The quarterly label has 173,734 rows (4.93% positive), matching the Phase 1 check exactly
+- The SQL reproduces the pandas lag sweep: with the same-quarter setup, every lag is within 0.0004 (12 months: -0.0523 against -0.0521)
+- The 12-month lag wins on both alignments; in the one-quarter-ahead version r = -0.0502 (95% CI -0.0550 to -0.0455, n = 169,548). The sign is negative, opposite to the hypothesis, and the effect is small
+- Reverse causation: the SQL reproduces the pandas result exactly (14 months, r = 0.2637), but using only rates up to the end of Train roughly halves it (r = 0.12), so it is at most weakly consistent with prices leading rates
+- The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against independent pandas versions (agreement to about 1e-16)
+
+**Open items:** reproduce on the second machine, confirm the decisions above with the pandas repo's author, and agree the wording of the reverse-causation result.
+
+### Phases 4-7 — Not yet merged
+
+Feature engineering, modeling, evaluation, and the communication dashboard are still to be merged. `sql/005_phase4_features.sql` is already in the repo as a building block for Phase 2's fold membership, but the side-by-side comparison with the pandas features has not been done. Known differences to settle first: `005` uses relative change for the rate and 1-month momentum in the interaction term, while the pandas features use percentage points and 3-month momentum.
 
 ## Setup
 
@@ -111,7 +135,9 @@ psql -U postgres housing_risk_team -f sql/001_schema.sql
 
 Then run the notebooks in order: `01` → `02` → ...
 
-For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds; `004` is optional for Phase 2). `005` drops the `cv_fold_rows` view when it rebuilds the modeling table, so re-run `003b` after every run of `005`. Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`.
+For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds). `005` drops the `cv_fold_rows` view when it rebuilds the modeling table, so re-run `003b` after every run of `005`. Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`.
+
+For Phase 3, notebook `03_phase3_eda_merged.ipynb` runs `004_phase3_eda.sql` itself. It needs `train_monthly` (built by `003`) and `mortgage_monthly` to exist.
 
 ## Collaboration
 
