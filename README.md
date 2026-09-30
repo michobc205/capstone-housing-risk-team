@@ -28,6 +28,7 @@ notebooks/    merged, phase-by-phase notebooks
 sql/          SQL schema and query files backing the notebooks
 outputs/      exported charts and persisted results (JSON, CSV, PNG); only files named phase* are tracked in git
 docs/         business framing and team reference documentation
+Makefile      runs the pipeline in order (make help)
 ```
 
 ## Merge Workflow
@@ -103,9 +104,33 @@ Merges the SQL variant's quarterly label and lag correlation with the pandas rep
 
 **Open items:** confirm the decisions above with the pandas repo's author, and agree the wording of the reverse-causation result.
 
-### Phases 4-7 — Not yet merged
+### Phase 4 — Feature Engineering ✅ Done (reproduction on the second machine pending)
 
-Feature engineering, modeling, evaluation, and the communication dashboard are still to be merged. `sql/005_phase4_features.sql` is already in the repo as a building block for Phase 2's fold membership, but the side-by-side comparison with the pandas features has not been done. Known differences to settle first: `005` uses relative change for the rate and 1-month momentum in the interaction term, while the pandas features use percentage points and 3-month momentum.
+**Notebook:** `notebooks/04_phase4_features_merged.ipynb`
+**SQL:** `sql/005_phase4_features.sql`, `sql/003b_cv_fold_membership.sql`
+**Results:** `outputs/phase4_feature_summary.csv`
+
+Merges the SQL variant's modeling table with the pandas repo's feature matrix: six features measured one quarter before each label (1, 3 and 6-month price momentum, the mortgage rate level, its 12-month change, and the interaction). Key decisions:
+
+- **Rate-of-change in percentage points,** as in Phase 3 and the pandas features. The earlier SQL used relative change
+- **Interaction = rate change x 3-month momentum,** the pandas choice (3 months is one quarter, the prediction horizon). The earlier SQL used 1-month momentum; Phase 5 can test 1 and 6 months
+- **Features come from the preceding quarter,** and rows are dated by their label quarter (the convention behind the Phase 0 counts). The pandas matrix is dated by feature quarter
+- **A row is dropped if any of the six features is missing,** so no model input holds an empty value. The earlier SQL only checked two of them
+- **Column names follow the pandas features** (`momentum_1m`, `momentum_3m`, `momentum_6m`, `mortgage_rate_level`, `mortgage_rate_roc`, `rate_roc_x_momentum`), plus a `feature_quarter_end` column so the two tables can be joined row by row
+
+**Validated:**
+
+- The table has 226,051 rows, no missing features, one row per county and quarter, features measured at the preceding quarter end, and the interaction equals the plain product
+- Train: 164,908 rows, 3,009 counties, 4.91% positive, against the pandas matrix's 164,460 rows, 3,009 counties, 4.85%. Both cover the same counties
+- Row by row, every one of the pandas matrix's 164,460 rows is in the SQL table with identical feature values (differences below 1e-15) and identical labels. The SQL table has 448 extra rows (0.27%) and the pandas matrix has none that the SQL lacks; they are expected to be quarters where the quarter-end month is missing but an earlier month in the quarter has a value
+- Test: 51,982 rows (17 label quarters). Dated by feature quarter, as the pandas matrix is, the same rows number 48,962 against the pandas 48,960, so the dating convention alone explains the test-set difference
+- The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against a pandas version of the feature logic (identical on every shared row)
+
+**Open items:** reproduce on the second machine, confirm the decisions above with the pandas repo's author, and choose which dating convention the test set uses from here on.
+
+### Phases 5-7 — Not yet merged
+
+Modeling, evaluation, and the communication dashboard are still to be merged. The pandas repo's modeling code depends on its `src/housing_risk/` package (labels, features, config), which this repo does not contain yet, so the team needs to decide whether to bring it in or reimplement it. The expected negative sign of the interaction term is checked in Phase 5.
 
 ## Setup
 
@@ -134,11 +159,21 @@ Apply the schema once, before running any notebook:
 psql -U postgres housing_risk_team -f sql/001_schema.sql
 ```
 
-Then run the notebooks in order: `01` → `02` → ...
+Then run the notebooks in order: `01` → `02` → `03` → `04`.
 
-For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds). `005` drops the `cv_fold_rows` view when it rebuilds the modeling table, so re-run `003b` after every run of `005`. Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`.
+For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds). `005` drops the `cv_fold_rows` view when it rebuilds the modeling table, so re-run `003b` after every run of `005`. Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`. Notebook `04` runs `005` and then `003b` itself, so the fold view is current after it.
 
 For Phase 3, notebook `03_phase3_eda_merged.ipynb` runs `004_phase3_eda.sql` itself. It needs `train_monthly` (built by `003`) and `mortgage_monthly` to exist.
+
+For Phase 4, notebook `04_phase4_features_merged.ipynb` needs `monthly_split` and `cv_folds` (built by `003`). Its optional last comparison reads the pandas repo's feature matrix from `data/processed/jolenn_train_features.csv` and is skipped if the file is missing.
+
+### Run everything with make
+
+`make help` lists the steps, and `make all` runs them in order: the schema, notebook `01`, `003`, `005`, notebooks `02`, `03` and `04`. Executed notebook copies are written to `build/` (ignored by git), so the committed notebooks are never modified. The Makefile works on Mac/Linux and on Windows Git Bash, but GNU make is not installed with Git Bash, so install it first or run the steps by hand.
+
+### What stays on your machine
+
+These are never committed: `.env` (database login), `.venv/`, `data/` (raw downloads and processed files), `build/`, the Postgres database itself, and every file in `outputs/` except the small `phase*.csv`, `.json` and `.png` results, which are tracked. Everything else can be rebuilt by running the steps above.
 
 ## Collaboration
 

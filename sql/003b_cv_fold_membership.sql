@@ -17,7 +17,7 @@ FROM (
         m.quarter,
         m.decline_label,
         m.momentum_1m, m.momentum_3m, m.momentum_6m,
-        m.rate_level, m.rate_roc_12m, m.rate_momentum_interaction,
+        m.mortgage_rate_level, m.mortgage_rate_roc, m.rate_roc_x_momentum,
         CASE
             WHEN qe BETWEEN f.train_start AND f.train_end THEN 'train'
             WHEN qe BETWEEN f.val_start   AND f.val_end   THEN 'val'
