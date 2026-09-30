@@ -78,7 +78,7 @@ Merges the SQL variant's single chronological split with the pandas repo's cross
 
 **Open items:** the pandas repo's test set has 48,960 rows against 51,986 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team still has to choose which convention to carry forward, and to confirm the folds may have no embargo gap.
 
-### Phase 3 — EDA: Lag Sweep and Reverse-Causation Check ✅ Done (reproduction on the second machine pending)
+### Phase 3 — EDA: Lag Sweep and Reverse-Causation Check ✅ Complete
 
 **Notebook:** `notebooks/03_phase3_eda_merged.ipynb`
 **SQL:** `sql/004_phase3_eda.sql`
@@ -99,8 +99,9 @@ Merges the SQL variant's quarterly label and lag correlation with the pandas rep
 - The 12-month lag wins on both alignments; in the one-quarter-ahead version r = -0.0502 (95% CI -0.0550 to -0.0455, n = 169,548). The sign is negative, opposite to the hypothesis, and the effect is small
 - Reverse causation: the SQL reproduces the pandas result exactly (14 months, r = 0.2637), but using only rates up to the end of Train roughly halves it (r = 0.12), so it is at most weakly consistent with prices leading rates
 - The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against independent pandas versions (agreement to about 1e-16)
+- Reproduced on a second machine (PostgreSQL 15, Jolenn's laptop): the reverse-causation sweep matched exactly (variant A: 14 months, r = 0.2637; variant B: 4 months, r = 0.1238)
 
-**Open items:** reproduce on the second machine, confirm the decisions above with the pandas repo's author, and agree the wording of the reverse-causation result.
+**Open items:** confirm the decisions above with the pandas repo's author, and agree the wording of the reverse-causation result.
 
 ### Phases 4-7 — Not yet merged
 
