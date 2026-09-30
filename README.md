@@ -76,7 +76,7 @@ Merges the SQL variant's single chronological split with the pandas repo's cross
 - No Embargo or Test rows appear in any fold
 - Reproduced on a second machine (PostgreSQL 15, Jolenn's laptop) with identical modeling-table counts and all 22 fold rows matching
 
-**Open items:** confirm with Jolenn what limits her pandas test set to 2,880 counties per quarter, and that she is happy with folds that have no embargo gap.
+**Open items:** the pandas repo's test set has 48,960 rows against 51,986 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team still has to choose which convention to carry forward, and to confirm the folds may have no embargo gap.
 
 ### Phases 3-7 — Not yet merged
 
