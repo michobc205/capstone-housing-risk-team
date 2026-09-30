@@ -233,4 +233,7 @@ private/
 data/
 
 # Generated outputs
-outputs/
+outputs/*
+!outputs/phase*.csv
+!outputs/phase*.json
+!outputs/phase*.png
