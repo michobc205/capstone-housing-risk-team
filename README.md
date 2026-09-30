@@ -77,7 +77,7 @@ Merges the SQL variant's single chronological split with the pandas repo's cross
 - No Embargo or Test rows appear in any fold
 - Reproduced on a second machine (PostgreSQL 15, Jolenn's laptop) with identical modeling-table counts and all 22 fold rows matching
 
-**Open items:** the pandas repo's test set has 48,960 rows against 51,986 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team still has to choose which convention to carry forward, and to confirm the folds may have no embargo gap.
+**Open items:** the pandas repo's test set has 48,960 rows against 51,986 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team agreed in Phase 4 to carry forward the label-quarter convention (17 test quarters). Still to confirm: that the folds may have no embargo gap.
 
 ### Phase 3 — EDA: Lag Sweep and Reverse-Causation Check ✅ Complete
 
@@ -104,7 +104,7 @@ Merges the SQL variant's quarterly label and lag correlation with the pandas rep
 
 **Open items:** confirm the decisions above with the pandas repo's author, and agree the wording of the reverse-causation result.
 
-### Phase 4 — Feature Engineering ✅ Done (reproduction on the second machine pending)
+### Phase 4 — Feature Engineering ✅ Complete
 
 **Notebook:** `notebooks/04_phase4_features_merged.ipynb`
 **SQL:** `sql/005_phase4_features.sql`, `sql/003b_cv_fold_membership.sql`
@@ -126,11 +126,13 @@ Merges the SQL variant's modeling table with the pandas repo's feature matrix: s
 - Test: 51,982 rows (17 label quarters). Dated by feature quarter, as the pandas matrix is, the same rows number 48,962 against the pandas 48,960, so the dating convention alone explains the test-set difference
 - The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against a pandas version of the feature logic (identical on every shared row)
 
-**Open items:** reproduce on the second machine, confirm the decisions above with the pandas repo's author, and choose which dating convention the test set uses from here on.
+**Agreed with the pandas repo's author:** percentage points for the rate change, the 3-month interaction, rows dated by label quarter (17 test quarters), the pandas column names, and dropping any row with a missing feature.
+
+**Open items:** run notebook `04` on the second machine to record the reproduction.
 
 ### Phases 5-7 — Not yet merged
 
-Modeling, evaluation, and the communication dashboard are still to be merged. The pandas repo's modeling code depends on its `src/housing_risk/` package (labels, features, config), which this repo does not contain yet, so the team needs to decide whether to bring it in or reimplement it. The expected negative sign of the interaction term is checked in Phase 5.
+Modeling, evaluation, and the communication dashboard are still to be merged. The pandas repo's modeling code depends on its `src/housing_risk/` package (labels, features, config), which this repo does not contain yet, so the team needs to decide whether to bring it in or reimplement it. Rows follow the agreed label-quarter dating. The expected negative sign of the interaction term is checked in Phase 5.
 
 ## Setup
 
