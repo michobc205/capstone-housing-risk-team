@@ -102,7 +102,9 @@ Merges the SQL variant's quarterly label and lag correlation with the pandas rep
 - The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against independent pandas versions (agreement to about 1e-16)
 - Reproduced on a second machine (PostgreSQL 15, Jolenn's laptop): the reverse-causation sweep matched exactly (variant A: 14 months, r = 0.2637; variant B: 4 months, r = 0.1238)
 
-**Open items:** confirm the decisions above with the pandas repo's author, and agree the wording of the reverse-causation result.
+**Agreed with the pandas repo's author:** the decisions above (percentage points, the preceding-quarter alignment, the strict 2% threshold, the 12-month lag and the missing-month handling).
+
+**Open item:** agree the wording of the reverse-causation result.
 
 ### Phase 4 — Feature Engineering ✅ Complete
 
@@ -125,10 +127,9 @@ Merges the SQL variant's modeling table with the pandas repo's feature matrix: s
 - Row by row, every one of the pandas matrix's 164,460 rows is in the SQL table with identical feature values (differences below 1e-15) and identical labels. The SQL table has 448 extra rows (0.27%) and the pandas matrix has none that the SQL lacks; they are expected to be quarters where the quarter-end month is missing but an earlier month in the quarter has a value
 - Test: 51,982 rows (17 label quarters). Dated by feature quarter, as the pandas matrix is, the same rows number 48,962 against the pandas 48,960, so the dating convention alone explains the test-set difference
 - The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against a pandas version of the feature logic (identical on every shared row)
+- Reproduced and confirmed on a second machine (Jolenn's laptop)
 
 **Agreed with the pandas repo's author:** percentage points for the rate change, the 3-month interaction, rows dated by label quarter (17 test quarters), the pandas column names, and dropping any row with a missing feature.
-
-**Open items:** run notebook `04` on the second machine to record the reproduction.
 
 ### Phases 5-7 — Not yet merged
 
