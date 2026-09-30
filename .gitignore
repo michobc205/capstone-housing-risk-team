@@ -237,3 +237,4 @@ outputs/*
 !outputs/phase*.csv
 !outputs/phase*.json
 !outputs/phase*.png
+build/
