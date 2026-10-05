@@ -117,15 +117,20 @@ END $$;
 -- =====================================================================
 -- 5. Quarterly provenance check (SOFT -- compare against phase0_framing.md)
 -- =====================================================================
--- Mirrors the notebook's Section 9 in pure SQL: last observed value per
--- quarter, per county, quarter-over-quarter decline label at the -2% cutoff.
+-- Mirrors the notebook's Section 9 in pure SQL: the QUARTER-END month's value
+-- per quarter, per county, quarter-over-quarter decline label at the -2% cutoff.
+-- A county-quarter is used only if its quarter-end month (Mar/Jun/Sep/Dec) has a
+-- ZHVI value, and a label is kept only if the previous row is the calendar quarter
+-- right before it. So both quarter-end months must have a value, which is the same
+-- rule as the pandas build (labels.py) and as 004/005 in this repo.
 WITH quarterly AS (
-    SELECT DISTINCT ON (county_fips, date_trunc('quarter', month))
+    SELECT
         county_fips,
         date_trunc('quarter', month)::date AS quarter,
         zhvi
     FROM county_month_joined
-    ORDER BY county_fips, date_trunc('quarter', month), month DESC
+    WHERE zhvi IS NOT NULL
+      AND month = (date_trunc('quarter', month) + INTERVAL '3 months' - INTERVAL '1 day')::date
 ),
 labeled AS (
     SELECT
@@ -133,6 +138,7 @@ labeled AS (
         quarter,
         zhvi,
         LAG(zhvi) OVER (PARTITION BY county_fips ORDER BY quarter) AS prev_zhvi,
+        LAG(quarter) OVER (PARTITION BY county_fips ORDER BY quarter) AS prev_quarter,
         CASE
             WHEN (zhvi / NULLIF(LAG(zhvi) OVER (PARTITION BY county_fips ORDER BY quarter), 0)) - 1 < -0.02
             THEN 1 ELSE 0
@@ -143,30 +149,31 @@ SELECT
     'Full history' AS window,
     COUNT(*) AS rows,
     ROUND(100.0 * AVG(decline_label), 2) AS positive_rate_pct
-FROM labeled WHERE prev_zhvi IS NOT NULL
+FROM labeled WHERE prev_quarter = (quarter - INTERVAL '3 months')::date
 UNION ALL
 SELECT
     'Train (through 2021-09-30)',
     COUNT(*),
     ROUND(100.0 * AVG(decline_label), 2)
-FROM labeled WHERE prev_zhvi IS NOT NULL AND quarter <= DATE '2021-09-30'
+FROM labeled WHERE prev_quarter = (quarter - INTERVAL '3 months')::date AND quarter <= DATE '2021-09-30'
 UNION ALL
 SELECT
     'Embargo (2021-10-01 to 2021-12-31)',
     COUNT(*),
     ROUND(100.0 * AVG(decline_label), 2)
-FROM labeled WHERE prev_zhvi IS NOT NULL AND quarter BETWEEN DATE '2021-10-01' AND DATE '2021-12-31'
+FROM labeled WHERE prev_quarter = (quarter - INTERVAL '3 months')::date AND quarter BETWEEN DATE '2021-10-01' AND DATE '2021-12-31'
 UNION ALL
 SELECT
     'Test (2022-01-01 to 2026-03-31)',
     COUNT(*),
     ROUND(100.0 * AVG(decline_label), 2)
-FROM labeled WHERE prev_zhvi IS NOT NULL AND quarter BETWEEN DATE '2022-01-01' AND DATE '2026-03-31';
+FROM labeled WHERE prev_quarter = (quarter - INTERVAL '3 months')::date AND quarter BETWEEN DATE '2022-01-01' AND DATE '2026-03-31';
 
--- Expected (docs/phase0_framing.md Data Provenance table):
---   Full history ~5.59%  | Train ~4.96% (173,824 rows) | Embargo ~0.99% (3,021 rows) | Test ~8.15% (52,087 rows)
--- Row counts here may differ slightly from phase0_framing.md's own figures
--- since those were computed on the pandas repo's data before this merge;
--- small drift is expected, large drift (more than a few percentage points
--- or a few hundred rows) means something in the merge changed behavior and
--- is worth investigating before moving to Phase 2.
+-- Expected after the label-rule change (both quarter-end months required):
+--   Train about 173,277 rows (~4.88%), the same as the pandas build's eda_summary.json.
+--   Embargo and Test move by a few rows at most. Full history also includes 2026-Q2 and Q3.
+-- docs/phase0_framing.md's figures (Full history 5.59%, Train 4.96% / 173,824, Embargo 0.99% /
+-- 3,021, Test 8.15% / 52,087) came from an earlier method that kept the quarter after an empty
+-- one, whose change then spans six months. Their "Full history" row count (228,932) is Train +
+-- Embargo + Test only, so it is lower than the "Full history" row here by design.
+-- Stop and investigate if Train is not close to 173,277.

@@ -22,6 +22,13 @@
 --   5. feature_quarter_end is added: the quarter-end date the features were measured
 --      at. It equals Jolenn's `month` column, so the two tables can be joined
 --      row by row.
+--   6. LABEL RULE: both quarter-end months must have a ZHVI value. The label and the
+--      features use the QUARTER-END month only (Mar/Jun/Sep/Dec). A quarter whose end
+--      month is empty gets no row, and a label is dropped unless the previous row is the
+--      calendar quarter right before it. This is the same rule as Jolenn's labels.py, as
+--      004 and as phase1_validation.sql. (The earlier version used the county's last month
+--      WITH a value, which gave 448 extra Train rows whose label spanned two, or four to
+--      five, months and held about 25% declines against 4.9% overall.)
 --
 -- Unlike Phase 3 (Train only, for EDA decisions), this runs across the FULL
 -- dataset -- Train, Embargo, and Test all need real feature values for
@@ -50,15 +57,15 @@ SELECT
     (zhvi / NULLIF(LAG(zhvi, 6) OVER (PARTITION BY county_fips ORDER BY month), 0)) - 1 AS momentum_6m
 FROM monthly_split;
 
--- 2. Quarter-end snapshot of momentum per county (last observed month in each
--- quarter) -- same DISTINCT ON pattern Phase 3 used for the label itself.
+-- 2. Quarter-end snapshot of momentum per county: the QUARTER-END month's values
+-- (Mar/Jun/Sep/Dec), same rule as the label in step 5 and as Jolenn's pandas features.
 DROP TABLE IF EXISTS county_quarterly_momentum;
 CREATE TABLE county_quarterly_momentum AS
-SELECT DISTINCT ON (county_fips, quarter)
+SELECT
     county_fips, quarter, momentum_1m, momentum_3m, momentum_6m
 FROM county_monthly_momentum
-WHERE zhvi IS NOT NULL   -- last month WITH a value, like pandas groupby().last() (skips NaN)
-ORDER BY county_fips, quarter, month DESC;
+WHERE zhvi IS NOT NULL
+  AND month = (quarter + INTERVAL '3 months' - INTERVAL '1 day')::date;
 
 -- 3. National mortgage rate: level + 12-month rate-of-change (percentage points), monthly grain,
 -- across the full dataset (extends Phase 3's Train-only version).
@@ -91,14 +98,16 @@ ORDER BY quarter, month DESC;
 DROP TABLE IF EXISTS quarterly_labeled_full;
 CREATE TABLE quarterly_labeled_full AS
 WITH q AS (
-    SELECT DISTINCT ON (county_fips, quarter)
+    -- QUARTER-END month only. A quarter whose end month is empty gets no row here, so its
+    -- own label and the next quarter's label are both dropped by the DELETE below.
+    SELECT
         county_fips,
         date_trunc('quarter', month)::date AS quarter,
         zhvi,
         split
     FROM monthly_split
-    WHERE zhvi IS NOT NULL   -- last month WITH a value, like pandas groupby().last() (skips NaN)
-    ORDER BY county_fips, date_trunc('quarter', month)::date, month DESC
+    WHERE zhvi IS NOT NULL
+      AND month = (date_trunc('quarter', month) + INTERVAL '3 months' - INTERVAL '1 day')::date
 )
 SELECT
     county_fips,
@@ -113,8 +122,8 @@ SELECT
     END AS decline_label
 FROM q;
 
--- Also drop rows whose previous available quarter is not the immediately preceding
--- calendar quarter (a gap in a county's series would make the label span two quarters).
+-- Also drop rows whose previous row is not the immediately preceding calendar quarter
+-- (a missing quarter-end month would make the label span more than one quarter).
 DELETE FROM quarterly_labeled_full
 WHERE prev_zhvi IS NULL
    OR prev_quarter <> (quarter - INTERVAL '3 months')::date;
@@ -150,10 +159,11 @@ DELETE FROM quarterly_modeling_table
 WHERE momentum_1m IS NULL OR momentum_3m IS NULL OR momentum_6m IS NULL
    OR mortgage_rate_level IS NULL OR mortgage_rate_roc IS NULL OR rate_roc_x_momentum IS NULL;
 
--- Row-count check per split -- compare against Phase 0's documented quarterly
--- provenance figures (Train 173,824 / Embargo 3,021 / Test 52,087) and Jolenn's
--- Train feature matrix (164,460 rows, 3,009 counties, 4.85% positive). Expect fewer
--- rows than Phase 0, because this table also drops early-history rows.
+-- Row-count check per split. Expected with the quarter-end label rule: Train 164,460 rows,
+-- 3,009 counties, 4.85% positive, identical to Jolenn's Train feature matrix row for row.
+-- Embargo about 3,020; Test about 51,980 (17 label quarters); Unassigned is now one quarter
+-- (2026-Q2) because 2026-Q3 has no September value yet. Fewer rows than Phase 0's
+-- (Train 173,824 / Embargo 3,021 / Test 52,087), because this table also drops early-history rows.
 SELECT split, COUNT(1) AS n_rows, COUNT(DISTINCT county_fips) AS n_counties,
        ROUND(100.0 * AVG(decline_label), 2) AS positive_rate_pct
 FROM quarterly_modeling_table

@@ -32,6 +32,18 @@ The test window's positive rate (8.15%) is meaningfully higher than the training
 
 **Note on "Full history" scope.** The Full history row count above (228,932) is the sum of the Train, Embargoed, and Test windows — it is not every row in the downloaded ZHVI file. The raw file extends through August 2026, which adds two more quarters (2026 Q2 and the partial 2026 Q3) beyond the Test window's 2026-03-31 cutoff — 6,142 additional county-quarter rows. Those quarters are excluded for the same reason Test stops where it does: predicting a quarter's decline requires a fully realized next quarter to label against, and 2026 Q3 isn't complete yet (through August only, no September). As more months land, these quarters become eligible for a future test-window extension, not a correction to the current figures.
 
+**Merged pipeline: label rule and updated figures.** The table above is the original Phase 0 record and is kept as it was. It comes from the earlier method, which took the last observed value per quarter. The merged pipeline requires **both quarter-end months** (March, June, September, December) to have a ZHVI value, the same rule as the pandas labels, so every label is a true quarter-to-quarter change. It gives:
+
+| Window | Positive rate | Rows | Phase 0 rows |
+|---|---|---|---|
+| Train (through 2021-09-30) | 4.88% | 173,277 | 173,824 |
+| Embargoed (2021-10-01 to 2021-12-31) | 0.96% | 3,020 | 3,021 |
+| Test (2022-01-01 to 2026-03-31) | 8.15% | 52,085 | 52,087 |
+
+The Train count is 547 lower (positive rate 4.88% instead of 4.96%) for two reasons. First, 91 counties each have one quarter with all three months empty. The earlier method kept the quarter after it, whose change spans six months, and the merged pipeline drops it (90 rows in Train, 1 in the Embargo window). Second, 457 Train rows had an empty quarter-end month but a value in an earlier month of the same quarter. The earlier method used that earlier month, so the label could span four to five months, and the merged pipeline drops those rows. Test is 2 rows lower for the second reason. The 173,277 Train rows are exactly Jolenn's pandas label count.
+
+Full history in the merged pipeline is 231,453 rows (5.55%): Train, Embargoed and Test (228,382) plus 3,071 rows for 2026-Q2. The partial 2026-Q3 gives no rows any more, because its quarter-end month (September) is not published yet.
+
 ## Evaluation Metric
 
 **ROC-AUC** is the primary metric at every modeling step, chosen because the three-step comparison method depends on a threshold-free metric to produce clean, comparable increments.

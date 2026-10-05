@@ -50,12 +50,13 @@ Merges both repos' Zillow ZHVI + FRED `MORTGAGE30US` ingest pipelines. Key decis
 - **Zillow NaN handling:** adopts the pandas repo's approach — trims each county to its own reporting window but keeps genuine *internal* gaps as NULL rows, rather than silently dropping them
 - **Month storage convention:** adopts month-end dates (Zillow's native format), removing the need for a `date_trunc`-based join
 - **The join itself stays in SQL** (the Postgres-variant's differentiator), now simplified to a plain equality join since both tables share one date convention
+- **Label rule: both quarter-end months required.** A county-quarter is represented by its quarter-end month (March, June, September, December), and a decline label needs two consecutive quarter-end values, as in the pandas repo's `labels.py`. The earlier SQL used the last month with a value, which gave labels that spanned two, or four to five, months. The same rule is used in `phase1_validation.sql`, `004` and `005`
 
 **Result:** the joined table `county_month_joined` (Zillow as the spine, LEFT JOIN to `mortgage_monthly`) holds 709,996 county-months across 3,071 counties, with no rows or counties dropped by the join.
 
 **Aggregation sensitivity:** the weekly-to-monthly FRED resample uses `.mean()` at month-end. A separate check comparing `.mean()` against `.last()` found the two nearly identical in level (correlation 0.9992) but disagreeing on the direction of the month-over-month change in 111 of 665 months, so the choice matters for the rate-of-change feature and is documented here rather than left implicit.
 
-**Validated two independent ways:** once via the notebook's own pandas-based provenance check, and again via `sql/phase1_validation.sql`'s pure-SQL recomputation — both agree, and both match the project's documented baseline figures (Test window: 52,087 rows, 8.15% positive rate, exact match).
+**Validated two independent ways:** once via the notebook's own pandas-based provenance check, and again via `sql/phase1_validation.sql`'s pure-SQL recomputation. Both give the same figures on 709,996 rows and 3,071 counties: Train 173,277 (4.88%), Embargo 3,020 (0.96%), Test 52,085 (8.15%) and Full history 231,453 (5.55%). The Train count is exactly the pandas repo's label count. Full history is Train, Embargo and Test (228,382) plus 3,071 rows for 2026-Q2; the unfinished 2026-Q3 gives no rows, because its quarter-end month (September) is not published yet. The Phase 0 figures (Train 173,824 / 4.96%, Embargo 3,021, Test 52,087) came from an earlier method. The Train count is 547 lower: 90 rows because 91 counties each have one quarter with all three months empty (the earlier method kept the quarter after it, whose change spans six months), and 457 rows whose quarter-end month was empty but whose quarter had an earlier value. `docs/phase0_framing.md` keeps the original table and adds a note with these figures.
 
 ### Phase 2 — Chronological Split + CV Folds ✅ Complete
 
@@ -67,44 +68,46 @@ Merges the SQL variant's single chronological split with the pandas repo's cross
 - **Split:** Train through 2021-09-30, one-quarter Embargo (2021-Q4, excluded from both sides), Test 2022-01-01 to 2026-03-31, and anything later is labelled `unassigned` rather than silently dropped
 - **CV folds:** the pandas repo's 11 expanding-window folds (validation years 2010-2020, four quarters each) are stored in a `cv_folds` table, all inside the Train window; folds never touch Embargo or Test
 - **Fold membership:** the `cv_fold_rows` view assigns each Train county-quarter to each fold as `train` or `val`, converting quarter-start dates to quarter-end to match the fold boundaries
-- **NULL ZHVI months:** some counties have missing ZHVI months mid-series, so quarterly snapshots take each county's last month *with a value* (mirroring pandas `groupby().last()`), and labels are dropped where the previous quarter is not the calendar quarter before
+- **NULL ZHVI months:** some counties have missing ZHVI months mid-series, so quarterly snapshots use the quarter-end month only and a label needs both quarter-end months (the previous row must be the calendar quarter before it), the same rule as the pandas labels (see Phase 1)
+- **No embargo gap inside the folds (decision: documented, no gap).** Training ends the quarter before validation starts. Every training label is already known when the validation features are measured, and the features only look backward, so this matches real use. The Train/Test embargo is stricter on purpose, because Test is opened only once
+- **Folds are applied by label quarter**, while the pandas notebook applies them by feature quarter. Both are free of leakage, but fold scores are not comparable one-to-one with `baseline_lock.json` (mean ROC-AUC 0.854, pooled prevalence 3.62% against about 3.8% here)
 
 **Validated:**
 
-- The split covers all 709,996 rows; the 1,043 rows above the earlier documented monthly counts are exactly the NULL-ZHVI months (1,040 Train, 3 Test)
-- Modeling table: Train 165,269 rows (4.92% positive), Embargo 3,020, Test 51,986 (8.11% positive), close to the documented Phase 0 figures
-- Every validation fold has at least 71 positives (the minimum required is 20); pooled validation prevalence is about 3.8%
+- The split covers all 709,996 rows, the same buckets as the pandas split (Train 529,214, Embargo 9,063, Test 156,364, Unassigned 15,355; difference 0). The 1,043 rows above the earlier SQL-variant monthly counts are exactly the kept NULL-ZHVI months (1,040 Train, 3 Test)
+- Modeling table (built by `005`): Train 164,460 rows (4.85% positive), Embargo 3,020, Test 51,980 (8.11% positive)
+- Every validation fold has at least 71 positives (the minimum required is 20); pooled validation is 112,734 rows with 4,252 positives, a prevalence of 3.77%
 - No Embargo or Test rows appear in any fold
-- Reproduced on a second machine (PostgreSQL 15, Jolenn's laptop) with identical modeling-table counts and all 22 fold rows matching
+- The fold and modeling-table figures were first reproduced on a second machine (PostgreSQL 15, Jolenn's laptop) under the earlier label rule; this is to be repeated with the new files
 
-**Open items:** the pandas repo's test set has 48,960 rows against 51,986 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team agreed in Phase 4 to carry forward the label-quarter convention (17 test quarters). Still to confirm: that the folds may have no embargo gap.
+**Note:** the pandas repo's test set has 48,960 rows against 51,980 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team agreed in Phase 4 to carry forward the label-quarter convention (17 test quarters). Counted by feature quarter, our table has exactly her 48,960 rows.
 
 ### Phase 3 — EDA: Lag Sweep and Reverse-Causation Check ✅ Complete
 
 **Notebook:** `notebooks/03_phase3_eda_merged.ipynb`
 **SQL:** `sql/004_phase3_eda.sql`
-**Results written by the notebook (in `outputs/`, not tracked in git):** `phase3_lag_correlation.csv`, `phase3_reverse_causation.csv`
+**Results written by the notebook (in `outputs/`, not tracked in git):** `phase3_lag_correlation.csv`, `phase3_lag_correlation_quarterly.csv`, `phase3_reverse_causation.csv`
 
 Merges the SQL variant's quarterly label and lag correlation with the pandas repo's EDA (p-values, confidence intervals, reverse-causation check). Key decisions:
 
-- **Rate-of-change in percentage points:** `rate(t) - rate(t - lag)`, as in the pandas repo. The earlier SQL used relative change, which gave a weaker 12-month correlation (-0.034 against -0.050)
+- **Rate-of-change in percentage points:** `rate(t) - rate(t - lag)`, as in the pandas repo. The earlier SQL used relative change, which gave a weaker 12-month correlation (-0.034 against -0.051)
 - **Preceding-quarter alignment:** each label is paired with the rate change at the end of the quarter before it, which is what predicting one quarter ahead requires. The pandas EDA paired it with the same quarter; that version is kept only to reproduce its numbers
-- **Label:** a decline strictly greater than 2%, using each county's last month with a value in a quarter (same missing-month handling as Phase 2)
+- **Label:** a decline strictly greater than 2%, using the quarter-end month only; a label needs both quarter-end months (see Phase 1)
 - **Lag:** 12 months
 - **Reverse-causation check in SQL:** two variants, one with the full mortgage-rate history (as in the pandas notebook) and one using only rates up to the end of Train
 
 **Validated:**
 
-- The quarterly label has 173,734 rows (4.93% positive), matching the Phase 1 check exactly
-- The SQL reproduces the pandas lag sweep: with the same-quarter setup, every lag is within 0.0004 (12 months: -0.0523 against -0.0521)
-- The 12-month lag wins on both alignments; in the one-quarter-ahead version r = -0.0502 (95% CI -0.0550 to -0.0455, n = 169,548). The sign is negative, opposite to the hypothesis, and the effect is small
+- The quarterly label has 173,277 rows (4.88% positive), matching the Phase 1 check and the pandas repo's label exactly
+- The SQL reproduces the pandas lag sweep: with the same-quarter setup, every lag agrees to six decimals (12 months: -0.0521 against -0.0521)
+- The 12-month lag has the largest correlation on both alignments; in the one-quarter-ahead version r = -0.0506 (95% CI -0.0554 to -0.0459, n = 169,091). The effect is weak and its sign inconclusive: the rate change is one national number per quarter, so the 170,000 rows are not independent evidence. A quarter-level re-test (82 quarters) gives r = -0.145 with a 95% CI of -0.351 to +0.074 and p = 0.19, which includes zero. The same holds for all six lags, so the 12-month lag cannot be told apart statistically from the others. It is carried forward because it was fixed in advance
 - Reverse causation: the SQL reproduces the pandas result exactly (14 months, r = 0.2637), but using only rates up to the end of Train roughly halves it (r = 0.12), so it is at most weakly consistent with prices leading rates
-- The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against independent pandas versions (agreement to about 1e-16)
+- The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against independent pandas versions (agreement to about 1e-16). That test predates the label-rule change; the comparison with the pandas repo's real results above covers the new rule
 - Reproduced on a second machine (PostgreSQL 15, Jolenn's laptop): the reverse-causation sweep matched exactly (variant A: 14 months, r = 0.2637; variant B: 4 months, r = 0.1238)
 
-**Agreed with the pandas repo's author:** the decisions above (percentage points, the preceding-quarter alignment, the strict 2% threshold, the 12-month lag and the missing-month handling).
+**Agreed with the pandas repo's author:** percentage points, the preceding-quarter alignment, the strict 2% threshold and the 12-month lag. The missing-month handling was later changed to her quarter-end rule (see Phase 1).
 
-**Open item:** agree the wording of the reverse-causation result.
+**Open item:** agree the wording of the reverse-causation result with Jolenn. Her notebook 11 calls the feedback-loop explanation supported, while variant B and the autocorrelation caveat point to a weaker wording.
 
 ### Phase 4 — Feature Engineering ✅ Complete
 
@@ -118,22 +121,27 @@ Merges the SQL variant's modeling table with the pandas repo's feature matrix: s
 - **Interaction = rate change x 3-month momentum,** the pandas choice (3 months is one quarter, the prediction horizon). The earlier SQL used 1-month momentum; Phase 5 can test 1 and 6 months
 - **Features come from the preceding quarter,** and rows are dated by their label quarter (the convention behind the Phase 0 counts). The pandas matrix is dated by feature quarter
 - **A row is dropped if any of the six features is missing,** so no model input holds an empty value. The earlier SQL only checked two of them
+- **Both quarter-end months are required** (decided after comparing the two builds row by row): the label and the features use the quarter-end month only, as in the pandas repo. The earlier SQL used the last month with a value, which gave 448 extra Train rows
 - **Column names follow the pandas features** (`momentum_1m`, `momentum_3m`, `momentum_6m`, `mortgage_rate_level`, `mortgage_rate_roc`, `rate_roc_x_momentum`), plus a `feature_quarter_end` column so the two tables can be joined row by row
 
 **Validated:**
 
-- The table has 226,051 rows, no missing features, one row per county and quarter, features measured at the preceding quarter end, and the interaction equals the plain product
-- Train: 164,908 rows, 3,009 counties, 4.91% positive, against the pandas matrix's 164,460 rows, 3,009 counties, 4.85%. Both cover the same counties
-- Row by row, every one of the pandas matrix's 164,460 rows is in the SQL table with identical feature values (differences below 1e-15) and identical labels. The SQL table has 448 extra rows (0.27%) and the pandas matrix has none that the SQL lacks; they are expected to be quarters where the quarter-end month is missing but an earlier month in the quarter has a value
-- Test: 51,982 rows (17 label quarters). Dated by feature quarter, as the pandas matrix is, the same rows number 48,962 against the pandas 48,960, so the dating convention alone explains the test-set difference
-- The SQL was tested on synthetic data in a scratch PostgreSQL 16 database against a pandas version of the feature logic (identical on every shared row)
-- Reproduced and confirmed on a second machine (Jolenn's laptop)
+- The table has 222,530 rows (Train 164,460, Embargo 3,020, Test 51,980, Unassigned 3,070), no missing features, one row per county and quarter, features measured at the preceding quarter end, and the interaction equals the plain product
+- Train: 164,460 rows, 3,009 counties, 4.85% positive, identical to the pandas matrix (also matching her `train_features_meta.json`). Both cover the same counties
+- Row by row, the SQL table and the pandas matrix hold exactly the same 164,460 rows, with identical feature values (largest difference 8.9e-16) and identical labels. Before the label rule was tightened the SQL table had 448 extra rows (0.27% of Train). Each had an empty quarter-end month in the feature quarter (199 rows, declines 53% of the time), in the label quarter (237 rows, 2.5%) or in both (12 rows), so its label did not span exactly one quarter, and together they held about 25% declines against 4.9% overall
+- Test: 51,980 rows (17 label quarters). Dated by feature quarter, as the pandas matrix is, the same rows number 48,960, exactly her 48,960, so the dating convention alone explains the test-set difference
+- All 11 validation folds keep at least 71 positives and no Embargo or Test row enters any fold after the rebuild
+- The SQL logic was first tested on synthetic data in a scratch PostgreSQL 16 database and confirmed on Jolenn's laptop, both before the label-rule change; the real-data comparison above covers the new rule, and a repeat on her laptop with the new files is still to be done
 
 **Agreed with the pandas repo's author:** percentage points for the rate change, the 3-month interaction, rows dated by label quarter (17 test quarters), the pandas column names, and dropping any row with a missing feature.
+
+**Decision made:** the SQL requires the quarter-end month in both quarters, as the pandas version does. That removed the 448 extra rows, so the two builds now match exactly.
 
 ### Phases 5-7 — Not yet merged
 
 Modeling, evaluation, and the communication dashboard are still to be merged. The pandas repo's modeling code depends on its `src/housing_risk/` package (labels, features, config), which this repo does not contain yet, so the team needs to decide whether to bring it in or reimplement it. Rows follow the agreed label-quarter dating. The expected negative sign of the interaction term is checked in Phase 5.
+
+**Phase 5 reminders:** treat the rate inputs as exploratory (about 82 independent quarters of information), fix the 12-month lag in advance, read the interaction sign as exploratory, and do not compare fold scores one-to-one with `baseline_lock.json`.
 
 ## Setup
 
@@ -168,7 +176,7 @@ For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `0
 
 For Phase 3, notebook `03_phase3_eda_merged.ipynb` runs `004_phase3_eda.sql` itself. It needs `train_monthly` (built by `003`) and `mortgage_monthly` to exist.
 
-For Phase 4, notebook `04_phase4_features_merged.ipynb` needs `monthly_split` and `cv_folds` (built by `003`). Its optional last comparison reads the pandas repo's feature matrix from `data/processed/jolenn_train_features.csv` and is skipped if the file is missing.
+For Phase 4, notebook `04_phase4_features_merged.ipynb` needs `monthly_split` and `cv_folds` (built by `003`). Its optional last comparisons read the pandas repo's feature matrix from `data/processed/jolenn_train_features.csv` and its summary from `data/processed/jolenn_train_features_meta.json`, and are skipped if the files are missing.
 
 ### Run everything with make
 

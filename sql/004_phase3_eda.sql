@@ -15,21 +15,25 @@
 --      with the rate-of-change ending in the SAME quarter; that version is kept
 --      here as a second alignment purely for comparison.
 --   3. The label is a decline strictly greater than 2% (pct_change < -0.02).
---   4. Each county-quarter uses the county's last month WITH a ZHVI value, and a
---      label is dropped when the previous available quarter is not the calendar
---      quarter right before it.
+--   4. Each county-quarter uses its QUARTER-END month only (Mar/Jun/Sep/Dec). A quarter
+--      whose end month has no ZHVI value gets no row, and a label is dropped when the
+--      previous row is not the calendar quarter right before it. So both quarter-end
+--      months must have a value, the same rule as Jolenn's labels.py and as 005 and
+--      phase1_validation.sql. (The earlier version used the county's last month WITH a
+--      value, which let some labels span two or four to five months.)
 
--- 1. Quarterly ZHVI per county: last month that has a value in each quarter.
+-- 1. Quarterly ZHVI per county: the QUARTER-END month's value (Mar/Jun/Sep/Dec).
+-- A quarter whose end month is empty gets no row, so its label and the next one are dropped below.
 DROP TABLE IF EXISTS train_quarterly CASCADE;
 CREATE TABLE train_quarterly AS
-SELECT DISTINCT ON (county_fips, quarter)
+SELECT
     county_fips,
     date_trunc('quarter', month)::date AS quarter,
     zhvi,
     mortgage_rate
 FROM train_monthly
-WHERE zhvi IS NOT NULL   -- last month WITH a value, like pandas groupby().last() (skips NaN)
-ORDER BY county_fips, quarter, month DESC;
+WHERE zhvi IS NOT NULL
+  AND month = (date_trunc('quarter', month) + INTERVAL '3 months' - INTERVAL '1 day')::date;
 
 -- 2. Quarter-over-quarter percent change and decline label, via LAG().
 DROP TABLE IF EXISTS train_quarterly_labeled CASCADE;
