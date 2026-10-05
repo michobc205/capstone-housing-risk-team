@@ -78,7 +78,7 @@ Merges the SQL variant's single chronological split with the pandas repo's cross
 - Modeling table (built by `005`): Train 164,460 rows (4.85% positive), Embargo 3,020, Test 51,980 (8.11% positive)
 - Every validation fold has at least 71 positives (the minimum required is 20); pooled validation is 112,734 rows with 4,252 positives, a prevalence of 3.77%
 - No Embargo or Test rows appear in any fold
-- The fold and modeling-table figures were first reproduced on a second machine (PostgreSQL 15, Jolenn's laptop) under the earlier label rule; this is to be repeated with the new files
+- The fold and modeling-table figures were first reproduced on a second machine (PostgreSQL 15, Jolenn's laptop) under the earlier label rule, and `005` and `003b` were then repeated there with the current files: the modeling table gave the same counts (Train 164,460, Embargo 3,020, Test 51,980, Unassigned 3,070) and the fold view has 22 rows, with the lowest validation fold at 71 positives
 
 **Note:** the pandas repo's test set has 48,960 rows against 51,980 here. This is a dating convention, not a county filter: its rows are dated by feature quarter, so it covers 16 label quarters (2022-Q2 to 2026-Q1) against our 17 (2022-Q1 to 2026-Q1). The team agreed in Phase 4 to carry forward the label-quarter convention (17 test quarters). Counted by feature quarter, our table has exactly her 48,960 rows.
 
@@ -109,6 +109,8 @@ Merges the SQL variant's quarterly label and lag correlation with the pandas rep
 
 **Open item:** agree the wording of the reverse-causation result with Jolenn. Her notebook 11 calls the feedback-loop explanation supported, while variant B and the autocorrelation caveat point to a weaker wording.
 
+**Still to do on Jolenn's laptop:** re-run Phase 3 (`004`, via `make phase3`) and notebooks 01 to 03 with the current files. Only `005` and `003b` have been repeated there so far (see Phase 4).
+
 ### Phase 4 — Feature Engineering ✅ Complete
 
 **Notebook:** `notebooks/04_phase4_features_merged.ipynb`
@@ -131,7 +133,7 @@ Merges the SQL variant's modeling table with the pandas repo's feature matrix: s
 - Row by row, the SQL table and the pandas matrix hold exactly the same 164,460 rows, with identical feature values (largest difference 8.9e-16) and identical labels. Before the label rule was tightened the SQL table had 448 extra rows (0.27% of Train). Each had an empty quarter-end month in the feature quarter (199 rows, declines 53% of the time), in the label quarter (237 rows, 2.5%) or in both (12 rows), so its label did not span exactly one quarter, and together they held about 25% declines against 4.9% overall
 - Test: 51,980 rows (17 label quarters). Dated by feature quarter, as the pandas matrix is, the same rows number 48,960, exactly her 48,960, so the dating convention alone explains the test-set difference
 - All 11 validation folds keep at least 71 positives and no Embargo or Test row enters any fold after the rebuild
-- The SQL logic was first tested on synthetic data in a scratch PostgreSQL 16 database and confirmed on Jolenn's laptop, both before the label-rule change; the real-data comparison above covers the new rule, and a repeat on her laptop with the new files is still to be done
+- The SQL logic was first tested on synthetic data in a scratch PostgreSQL 16 database and confirmed on Jolenn's laptop, both before the label-rule change. The current `005` and `003b` were then repeated on her laptop: Train 164,460 rows, 3,009 counties, 4.85%, identical to her `train_features.csv` row for row (largest feature difference 4.4e-16, 0 label mismatches), and the other splits match the figures above. The Phase 3 tables and notebooks 01 to 03 have not been re-run there yet
 
 **Agreed with the pandas repo's author:** percentage points for the rate change, the 3-month interaction, rows dated by label quarter (17 test quarters), the pandas column names, and dropping any row with a missing feature.
 
