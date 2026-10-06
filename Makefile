@@ -25,7 +25,7 @@ VENV  ?= .venv
 PY    := $(firstword $(wildcard $(VENV)/Scripts/python.exe $(VENV)/bin/python) $(VENV)/bin/python)
 
 # Load .env, then run psql. Stop at the first SQL error.
-PSQL  := set -a; . ./.env; set +a; psql -v ON_ERROR_STOP=1
+PSQL  := set -a; . ./.env; set +a; psql -v ON_ERROR_STOP=1 -P pager=off
 
 # Execute a notebook top to bottom with no per-cell timeout (the loads are slow).
 NBRUN := $(PY) -m jupyter nbconvert --to notebook --execute \
