@@ -1,0 +1,40 @@
+# Merge rules for Phases 5 and 6
+
+Written before comparing the notebooks.
+
+## A. Design and honesty about Test
+
+1. **The design stays locked.** Three families: logistic regression, random forest and histogram gradient boosting. Settings are fixed, seed 42, no tuning. Three feature steps in the Phase 0 order: momentum only, plus rate level, plus rate change with the interaction (12-month lag, fixed in advance). The recommended model is chosen on the validation folds only: random forest on momentum. XGBoost is left out completely, not even as an extra line. The pandas pipeline's second-algorithm notebook is compared for method only and is not ported.
+2. **Test was already known.** The Test period was scored in both independent pipelines and in earlier versions before this merge. The results are protected from new choices, but they are not untouched. Wording to use: choices were made on the validation folds, and Test was scored once with frozen models.
+3. **Comparison of methods and code only.** No choice is made because of Test results. Reading order: the modeling notebook, the robustness notebook and the validation files first. The final-evaluation notebook and its results come last, after this note is committed.
+4. **Bootstrap.** The locked version (mean of per-fold scores, bootstrap over quarters) is the main one. The pooled out-of-fold version is reported as a check. If the verdicts differ, the main one stands, the difference is reported, and Test results never settle it.
+5. **Allowed additions, labelled as such:** a quarter-bootstrap interval for the logistic interaction coefficient (read as exploratory, because the rate has only about 82 independent quarters of information), validation-year and PR-AUC / base-rate columns in the per-fold table, and a note that the folds use label-quarter dating, so scores are not comparable one-to-one with the pandas pipeline's baseline lock. Anything else new is marked "exploratory, added after Test was seen".
+
+## B. Locks and gates
+
+6. **Locks and gates stay.** The baseline lock is committed before the rate steps are fitted. The thresholds lock is committed before Test is scored. Notebook 06 refuses to run unless the locks are committed. Gates stay: at least 20 positives in every validation fold, and a Test data-quality check (51,980 rows, 4,214 declines, 17 label quarters). Test is scored once per run with frozen models. All three locks go to `docs/` and are committed as soon as they are written.
+
+## C. What the notebooks report
+
+7. **Phase 5:** per-fold table, bootstrap over the 44 validation quarters, and the success rule (a step helps only if its 95% interval excludes zero and the gain is at least +0.01 ROC-AUC). The recommended model is chosen on validation only.
+8. **Phase 6:**
+   - Test results per step and family, with a bootstrap over the 17 Test quarters and the same success rule. The intervals are wide, and the notebook says so.
+   - Rank-based rules (riskiest 5%, 10% and 20%) and the validation-locked F1 threshold, judged by lift.
+   - Calibration, and a per-quarter table.
+   - A check of rates outside the training range.
+   - The order-dependency statement: the lifts measure what the rate adds given momentum.
+   - The robustness check: do the families rank the contributions the same way?
+
+## D. Port checks
+
+9. **Checks:**
+   - training label quarters end before each validation period starts
+   - the FRED rate uses only weeks up to the feature quarter-end
+   - there is no duplicate month and no fold row outside Train
+   - the team results reproduce the locked numbers (for example logistic regression baseline 0.8364, random forest 0.8680, Test random forest 0.8857) up to floating-point noise. If they do not, stop and investigate.
+
+## E. Data, dashboard and scope
+
+10. **Data version.** The raw Zillow and FRED files are frozen, with hashes recorded in the README, and backed up outside the repo. The write-up states that Zillow revises past values each month, so the backtest uses later, revised values. The smoothing is trailing, so the effect comes from revisions only.
+11. **Dashboard.** Aggregated results only, no county-level columns. The snapshot lives in `docs/dashboard_data/` and is re-exported and committed after every re-run of notebooks 05 and 06.
+12. **Out of scope before the 16th:** county features, the 2008 sensitivity folds and the measurement of Zillow's revisions (future work). Not adopted, because each would reopen a settled choice after Test was seen: class weights, extra rate lags, XGBoost, neighbour averages and the "declined last quarter" flag.
