@@ -38,3 +38,7 @@ Written before comparing the notebooks.
 10. **Data version.** The raw Zillow and FRED files are frozen, with hashes recorded in the README, and backed up outside the repo. The write-up states that Zillow revises past values each month, so the backtest uses later, revised values. The smoothing is trailing, so the effect comes from revisions only.
 11. **Dashboard.** Aggregated results only, no county-level columns. The snapshot lives in `docs/dashboard_data/` and is re-exported and committed after every re-run of notebooks 05 and 06.
 12. **Out of scope before the 16th:** county features, the 2008 sensitivity folds and the measurement of Zillow's revisions (future work). Not adopted, because each would reopen a settled choice after Test was seen: class weights, extra rate lags, XGBoost, neighbour averages and the "declined last quarter" flag.
+
+## Decisions added after the rules were committed
+
+- 2026-10-06 (agreed by both team members): the reproduction check in notebook 05 uses a tolerance per family. Logistic regression and histogram gradient boosting must match to within 1e-6, and the random forest within 1e-3. On a second machine of a different type (Apple arm64), logistic regression and histogram gradient boosting matched exactly and the random forest differed by up to 4e-4. The most likely reason is that its trees split differently at near-ties on different hardware. Any difference in the data or the code still stops the notebook. The same per-family rule applies to the Test lock in Phase 6.
