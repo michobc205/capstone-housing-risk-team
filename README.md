@@ -20,6 +20,19 @@ methodology and combining the best of both along the way.
 | Zillow ZHVI (Middle Tier, 33rd-67th percentile, SFR + Condo/Co-op, Smoothed & Seasonally Adjusted) | County, monthly | Home value index — builds the price-decline label and momentum features |
 | FRED `MORTGAGE30US` | National, weekly (resampled to monthly via `.mean()`) | 30-year fixed mortgage rate — builds rate level, rate-of-change, and interaction features |
 
+### Data version
+
+Every result in this repository comes from these two raw files. They are not in the repository (`data/` is git-ignored). The hash is the proof of the version.
+
+| File | SHA-256 | Size | Downloaded |
+|---|---|---|---|
+| `data/raw/zillow/zhvi_county.csv` | `334e267a88028068d8c485363bf367a613c24a32dba3b1e288754e9728933867` | 13,579,570 bytes | 2026-09-22 and 2026-09-29 (identical copies) |
+| `data/raw/fred/mortgage30us.csv` | `b2b254ffbdb7210029ada9e99feb345e124f6aeed7f20bdfbd7e5eff04f37a8a` | 46,931 bytes | 2026-09-29 |
+
+The Zillow file is the same on both machines. Michel's independent SQL project used the same Zillow file and an earlier FRED file (`11e81dbde55fab4f29cbe2e4604df594f05f655cf6f5196a3264db5b6c38c385`, 46,915 bytes, downloaded 2026-09-23). The two FRED files differ by one line, the weekly reading `2026-09-24,7.03`. No row of the modeling table uses it: the newest rate used in any feature is from the March 2026 quarter end.
+
+Zillow re-estimates and republishes its whole history every month, so a new download is a different version. Keep the cached files and do not re-download them.
+
 ## Project Structure
 
 ```
@@ -35,7 +48,7 @@ Makefile      runs the pipeline in order (make help)
 
 This repo combines two independently-built capstone pipelines:
 
-- **[capstone-housing-risk-postgres-variant](https://github.com/michobc205/capstone-housing-risk-postgres-variant)** — Michel's SQL/Postgres-based approach, doing transformations (splitting, EDA, feature engineering) directly in Postgres via SQL rather than pandas
+- **[housing-price-decline-risk-sql](https://github.com/michobc205/housing-price-decline-risk-sql)** — Michel's SQL/Postgres-based approach, doing transformations (splitting, EDA, feature engineering) directly in Postgres via SQL rather than pandas
 - **Housing Price Decline** — Jolenn's pandas-based approach, using Python/pandas for transformations with Postgres as storage only
 
 Each phase is merged by comparing both independent implementations, resolving any methodology differences, and combining them into a single version carried forward here. Decisions made along the way are documented directly in the relevant notebook's markdown cells, not hidden in commit messages.
@@ -194,7 +207,7 @@ Built by merging two independently-attempted personal repos into this shared
 one, phase by phase — each phase is compared, methodology differences are
 resolved and documented, and the combined version is carried forward here.
 
-- **Michel Mghames** — [capstone-housing-risk-postgres-variant](https://github.com/michobc205/capstone-housing-risk-postgres-variant)
+- **Michel Mghames** — [housing-price-decline-risk-sql](https://github.com/michobc205/housing-price-decline-risk-sql)
 - **Jolenn Darensbourg** — Housing Price Decline (pandas-based repo)
 
 ## License
