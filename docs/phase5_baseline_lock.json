@@ -1,0 +1,44 @@
+{
+  "purpose": "Baseline (momentum only) validation scores, saved before steps 2 and 3 were fitted.",
+  "feature_columns": [
+    "momentum_1m",
+    "momentum_3m",
+    "momentum_6m"
+  ],
+  "n_folds": 11,
+  "validation_rows": 112734,
+  "validation_declines": 4252,
+  "std_is_sample_std_across_folds": true,
+  "random_state": 42,
+  "settings": {
+    "logreg": "StandardScaler + LogisticRegression(max_iter=2000)",
+    "random_forest": "n_estimators=200, min_samples_leaf=5, max_depth=12",
+    "hist_gb": "max_iter=150"
+  },
+  "library_versions": {
+    "python": "3.13.9",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1"
+  },
+  "families": {
+    "logreg": {
+      "mean_roc_auc": 0.8363890404412397,
+      "std_roc_auc": 0.06303311235904586,
+      "mean_pr_auc": 0.3290218013875696,
+      "std_pr_auc": 0.13987513006916225
+    },
+    "random_forest": {
+      "mean_roc_auc": 0.8679518330711137,
+      "std_roc_auc": 0.03505603406063947,
+      "mean_pr_auc": 0.31195256478596706,
+      "std_pr_auc": 0.13052372571195017
+    },
+    "hist_gb": {
+      "mean_roc_auc": 0.8666119441888345,
+      "std_roc_auc": 0.035867415368082176,
+      "mean_pr_auc": 0.31390824662222916,
+      "std_pr_auc": 0.13424529666835505
+    }
+  }
+}
