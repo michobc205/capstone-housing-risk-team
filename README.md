@@ -159,7 +159,7 @@ Merges the SQL variant's modeling table with the pandas repo's feature matrix: s
 **Rules written before the notebooks were compared:** `docs/merge_rules_phase5_6.md`
 **Tables written by the notebook (in the database):** `phase5_fold_scores`, `phase5_step_summary`, `phase5_bootstrap_deltas`, `phase5_validation_predictions`
 
-Merges the SQL variant's modeling notebook with the pandas repo's modeling sequence (`08` and `09`). The pandas repo's code depends on its `src/housing_risk/` package, which the team did not bring in: the SQL variant's notebook needs only pandas, NumPy, SQLAlchemy, scikit-learn and python-dotenv, so it was ported with the team column names. Key decisions:
+Merges the SQL variant's modeling notebook with the pandas repo's modeling sequence (`08` and `09`). The pandas repo's code depends on its `src/housing_risk/` package, which the team did not bring in: the SQL variant's notebook needs only pandas, NumPy, SQLAlchemy with the psycopg2 driver, scikit-learn and python-dotenv, so it was ported with the team column names. Key decisions:
 
 - **Design fixed before any result:** three families (logistic regression, random forest, histogram gradient boosting), fixed settings, seed 42, no tuning; three feature steps in the Phase 0 order (momentum only, plus rate level, plus rate change and interaction, with the 12-month lag fixed in advance); every choice made on the 11 validation folds
 - **XGBoost is left out.** Histogram gradient boosting is the same kind of model, and three families already meet the requirement of at least two
