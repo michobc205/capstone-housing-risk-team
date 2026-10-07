@@ -1,0 +1,3 @@
+feature,train_min,train_max,test_min,test_max,test_pct_outside_train_range
+mortgage_rate_level,2.684,7.159999999999999,3.098,7.2,5.892651019622932
+mortgage_rate_roc,-1.42,1.1124999999999998,-1.0200000000000005,3.266,29.357445171219698

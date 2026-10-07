@@ -1,0 +1,24 @@
+{
+  "created_utc": "2026-10-07 15:01",
+  "tables": {
+    "phase5_fold_scores": 99,
+    "phase5_step_summary": 9,
+    "phase5_bootstrap_deltas": 9,
+    "phase6_test_scores": 9,
+    "phase6_test_deltas": 9,
+    "phase6_family_deltas": 9,
+    "phase6_thresholds": 9,
+    "phase6_decision_rules": 72,
+    "phase6_calibration": 20,
+    "phase6_calibration_all": 9,
+    "phase6_per_quarter": 153,
+    "phase6_range_check": 2,
+    "phase6_eval_summary": 12,
+    "dash_split_summary": 4,
+    "dash_quarterly_rate": 101,
+    "dash_fold_overview": 11,
+    "dash_fold_range_check": 11,
+    "dash_test_range_by_quarter": 17
+  },
+  "note": "Aggregated results only. No county-level rows."
+}

@@ -1,0 +1,13 @@
+key,value
+recommended_family,random_forest
+recommended_step,baseline
+train_rows,164460
+test_rows,51980
+test_declines,4214
+test_base_rate,0.0810696421700654
+test_roc_auc,0.8856710964051316
+test_pr_auc,0.46646447290509263
+test_brier,0.05487441830622942
+test_pr_auc_ci_lo,0.3378913392304734
+test_pr_auc_ci_hi,0.5737592294208769
+f1_threshold,0.3385948219428074
