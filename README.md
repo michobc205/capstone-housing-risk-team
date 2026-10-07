@@ -186,9 +186,43 @@ Merges the SQL variant's modeling notebook with the pandas repo's modeling seque
 
 **Reading the results:** treat the rate inputs as exploratory (about 82 independent quarters of information), the 12-month lag was fixed in advance, and fold scores are not comparable one-to-one with the pandas repo's `baseline_lock.json`, because that file dates its folds by feature quarter.
 
-### Phases 6-7 — Not yet merged
+### Phase 6 — Evaluation on the Test Period ✅ Complete
 
-The evaluation on the Test period and the communication dashboard are still to be merged. Test is scored with frozen models, after the rules in `docs/merge_rules_phase5_6.md`. Rows follow the agreed label-quarter dating.
+**Notebook:** `notebooks/06_phase6_evaluation_merged.ipynb`
+**Locked results (committed):** `docs/phase6_thresholds_lock.json` (the F1 cut-offs, found on the validation predictions, and the columns of the three feature steps; committed before Test was scored) and `docs/phase6_test_lock.json` (the Test scores of the nine frozen models)
+**Rules written before the notebooks were compared:** `docs/merge_rules_phase5_6.md`
+**Tables written by the notebook (in the database):** `phase6_test_scores`, `phase6_test_deltas`, `phase6_family_deltas`, `phase6_thresholds`, `phase6_decision_rules`, `phase6_calibration`, `phase6_calibration_all`, `phase6_per_quarter`, `phase6_range_check`, `phase6_eval_summary` and `phase6_test_predictions` (county level: it stays in the database and is never exported)
+
+Merges the SQL variant's evaluation notebook with the pandas repo's final evaluation (`10`). The pandas notebook scores two models on its own feature build. The SQL variant's notebook scores the nine frozen models of Phase 5 on the shared modeling table and adds the decision rules, the calibration, the per-quarter stability and the range check, so it was ported with the team column names. From the pandas notebook the team took the order-dependency statement, the idea of a data-quality gate on the Test window (here with exact figures) and a plain read-out against the project's success criteria. Its second algorithm is left out, as in Phase 5, and its feedback-loop explanation of the rate-change sign is not carried over (the reverse-causation check itself was merged in Phase 3, with the wording agreed there). Key decisions:
+
+- **Design fixed before any result:** the nine models of Phase 5 (three families, three feature steps) with the same fixed settings, refit on all Train rows. Every choice was made on the validation folds, and Test is scored with frozen models. Test was also scored in earlier, retired versions of both pipelines, so it is not a fresh draw: nothing in the notebook is chosen from Test results
+- **Locks and gates:** the baseline lock must be committed before the notebook runs. The F1 cut-offs are computed from the validation predictions only and written to `docs/phase6_thresholds_lock.json`, and the notebook stops until that file is committed, before Test is scored. The Test scores are then written to `docs/phase6_test_lock.json`, and the notebook stops again until that file is committed, before the analysis continues
+- **Data-quality gate and port checks:** the notebook stops unless Train has 164,460 rows and Test has 51,980 rows, 4,214 declines and 17 label quarters (2022-Q1 to 2026-Q1), and unless the last Train label ends before the first Test label quarter starts. The validation predictions must have 11 folds, 44 quarters, 112,734 rows and 4,252 declines, at least 20 declines in every fold, no duplicate county and quarter, and every row inside Train with the same label as in the modeling table
+- **Cut-offs are frozen:** a re-run recomputes them only as a check and then applies the committed cut-offs, so every machine uses the same decision rule
+- **Decision rules:** the riskiest 5%, 10% and 20% of counties in each quarter, and the validation-locked F1 cut-off, reported side by side and judged by lift. No rule is picked
+- **Does the rate help on Test?** The same rule as Phase 5 (the 95% interval excludes zero and the gain is at least +0.01 ROC-AUC), with a bootstrap that resamples the 17 Test quarters (2,000 draws)
+- **Tolerances:** logistic regression and histogram gradient boosting must reproduce the reference to within 1e-6 (cut-offs and Test scores). The random forest keeps 1e-3 for the Phase 5 baseline (decided 2026-10-06) and is allowed 1e-2 for its Test scores and for its two F1 checks on a re-run (decided 2026-10-07, after the second machine showed a gap of 1.43e-3 in its PR-AUC; the F1 curve of a random forest is flat near its top, so its best cut-off can move by a few thousandths between machines while the F1 hardly changes). The row counts must match exactly
+- **Feature steps recorded:** the thresholds lock lists the columns of all three feature steps, and the notebook stops unless they match the fixed lists and the committed baseline lock
+- **Added after the comparison, and labelled in the notebook:** a paragraph on the fixed step order and, added after Test was seen, a plain read-out of the verdicts against the success criteria (it computes nothing new)
+
+**Validated:**
+
+- Gates: Train 164,460 rows; Test 51,980 rows, 4,214 declines (8.11%) and 17 label quarters; validation predictions 112,734 rows and 4,252 declines
+- Test ROC-AUC at the baseline: logistic regression 0.8668, random forest 0.8857, histogram gradient boosting 0.8915. All nine models score higher on Test than on their validation average, by 0.017 to 0.034 ROC-AUC
+- **No step helps in any family on Test.** Adding the rate level lowers ROC-AUC for the random forest (-0.0077, 95% interval -0.0118 to -0.0044) and for histogram gradient boosting (-0.0223, -0.0414 to -0.0084), and leaves logistic regression unchanged (+0.0009, -0.0021 to +0.0035). Step 3 compared with step 2 shows no significant change in any family. Once a county's own momentum is known, the mortgage rate adds no measurable predictive power on Test either, including the 2022-23 hiking cycle. Test has only 17 quarters, so the intervals are wide
+- **The recommended model is unchanged (chosen on validation):** random forest on momentum only, with Test ROC-AUC 0.8857 (95% interval 0.8502 to 0.9139) and PR-AUC 0.4665 (0.3379 to 0.5738) against a base rate of 8.11%. At the baseline, histogram gradient boosting is ahead of the random forest by 0.0058 (0.0022 to 0.0107) and the random forest is ahead of logistic regression by 0.0189 (0.0008 to 0.0470). The difference is reported and does not change the choice
+- **Decision rules (recommended model):** the riskiest 10% of counties in each quarter hold 48.6% of the Test declines, and 39.4% of the flagged counties declined (lift 4.9). The lifts for the top 5%, 10% and 20% are 6.0, 4.9 and 3.5 on Test against 7.8, 5.5 and 3.6 on validation. The F1 cut-off (0.3386) flags 6.3% of Test counties against 4.6% on validation, and its lift falls from 10.7 to 6.9, so it is the least stable of the four rules
+- **Calibration:** the probabilities are too low on Test (6.91% predicted against 8.11% actual, below the actual rate in all ten deciles) and were too high on validation (5.39% against 3.77%). The gap is smallest in the riskiest tenth. No recalibration is applied
+- **Stability over time:** the quarterly ROC-AUC runs from 0.7555 (2022-Q1, 39 declines) to 0.9637 (2026-Q1), with a median of 0.9015, and 12 of the 17 quarters are at or above 0.85. Four of the five quarters below 0.85 are in 2022-23, the fifth is 2025-Q2
+- **Rates outside the training range:** the rate level lies outside the Train range for 5.9% of Test rows (all in 2023-Q4: 7.20 against 7.16). The 12-month rate change lies outside it for 29.4%, every county in the five quarters from 2022-Q3 to 2023-Q3 (up to +3.27 points against at most +1.11 in Train)
+- **Reproduced on the original machine** (Windows, Python 3.13.9, numpy 2.5.3, pandas 3.0.6, scikit-learn 1.9.1, PostgreSQL 18): the F1 cut-offs reproduce the SQL variant's to about 1e-16, and all 27 Test numbers (nine models, ROC-AUC, PR-AUC and Brier score) reproduce its Test scores (largest gap 0 for logistic regression and histogram gradient boosting, 7e-18 for the random forest), in a fresh run and in a second run from the committed locks
+- **Reproduced on a second machine** (Jolenn's Apple Silicon Mac, Python 3.14.7, the same numpy, pandas and scikit-learn versions, PostgreSQL 15): a first re-run stopped, as designed, at the check of the Test scores (logistic regression 7e-17, histogram gradient boosting 0, random forest PR-AUC 1.43e-3, against the 1e-3 allowed at that time), which led to the 1e-2 tolerance above. The second re-run ran to the end. The bootstrap verdicts and every `interval_excludes_zero` value in the family comparison are the same as on the original machine, and the random forest intervals differ only in the third or fourth decimal (baseline Test ROC-AUC 0.8861 against 0.8857). Its random forest cut-offs moved by up to 3.4e-3, and the F1 at the locked cut-off was up to 1.12e-3 below that machine's own best
+
+**Reading the results:** use the models to rank counties, not to read off a probability, because the probabilities are not stable across periods. The rate inputs are exploratory (about 82 independent quarters of information) and Test has only 17 quarters. "No gain" is not "no relationship": it says the rate adds nothing measurable beyond a county's own price momentum, which is the question the project asks.
+
+### Phase 7 — Not yet merged
+
+The communication dashboard is still to be merged. It will show aggregated results only, with no county-level rows.
 
 ## Setup
 
@@ -217,7 +251,7 @@ Apply the schema once, before running any notebook:
 psql -U postgres housing_risk_team -f sql/001_schema.sql
 ```
 
-Then run the notebooks in order: `01` → `02` → `03` → `04` → `05`.
+Then run the notebooks in order: `01` → `02` → `03` → `04` → `05` → `06`.
 
 For Phase 2, the SQL files must run in this order: `003_phase2_split.sql` → `005_phase4_features.sql` → `003b_cv_fold_membership.sql` (`003b` reads the modeling table `005` builds). `005` drops the `cv_fold_rows` view when it rebuilds the modeling table, so re-run `003b` after every run of `005`. Notebook `02` runs `003` and `003b` and checks their results, but does not run `005`. Notebook `04` runs `005` and then `003b` itself, so the fold view is current after it.
 
@@ -227,9 +261,11 @@ For Phase 4, notebook `04_phase4_features_merged.ipynb` needs `monthly_split` an
 
 For Phase 5, notebook `05_phase5_modeling_merged.ipynb` needs `quarterly_modeling_table` and the `cv_fold_rows` view (notebook `04` builds both; re-run `003b` after any run of `005`). The baseline lock `docs/phase5_baseline_lock.json` is committed, and a run must reproduce it. If the file is ever deleted, the first run writes it again and stops at the gate cell until it is committed. A full run takes about 3 minutes on an Apple Silicon Mac and about 12 to 35 minutes on a Windows laptop, depending on free memory (the random forest fits use all processor cores, so close memory-heavy programs first). It writes four `phase5_*` tables into the database.
 
+For Phase 6, notebook `06_phase6_evaluation_merged.ipynb` needs `quarterly_modeling_table` and the Phase 5 tables `phase5_validation_predictions` and `phase5_step_summary` (run notebook `05` first). The three lock files in `docs/` (`phase5_baseline_lock.json`, `phase6_thresholds_lock.json` and `phase6_test_lock.json`) must be committed: the notebook reads their git status and stops otherwise, so work in a clone made with git. A run must reproduce the locked cut-offs and the locked Test scores, within the per-family tolerance described in Phase 6. If a lock file is ever deleted, the first run writes it again and stops at its gate cell until it is committed. A full run takes about 15 minutes on a Windows laptop (the random forest refits and the two bootstraps take most of it) and much less on an Apple Silicon Mac. It writes eleven `phase6_*` tables into the database.
+
 ### Run everything with make
 
-`make help` lists the steps, and `make all` runs them in order: the schema, notebook `01`, `003`, `005`, notebooks `02`, `03` and `04`. Executed notebook copies are written to `build/` (ignored by git), so the committed notebooks are never modified. The Makefile works on Mac/Linux and on Windows Git Bash, but GNU make is not installed with Git Bash, so install it first or run the steps by hand. Notebook `05` is not a make step yet: run it from Jupyter, VS Code or `jupyter nbconvert --execute`.
+`make help` lists the steps, and `make all` runs them in order: the schema, notebook `01`, `003`, `005`, then notebooks `02`, `03`, `04`, `05` and `06` (`make phase5` and `make phase6` run those two alone). Executed notebook copies are written to `build/` (ignored by git), so the committed notebooks are never modified. Notebooks `05` and `06` check the git status of the lock files in `docs/`, so run them inside a git clone, and they are slow (about 12 to 35 minutes and about 15 minutes on a Windows laptop). The Makefile works on Mac/Linux and on Windows Git Bash, but GNU make is not installed with Git Bash, so install it first or run the steps by hand.
 
 ### What stays on your machine
 
