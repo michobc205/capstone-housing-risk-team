@@ -4,7 +4,8 @@
 #
 # Why this exists: notebooks 01-04 run most of the SQL, but two steps are not
 # in any notebook (the one-time schema, and sql/005_phase4_features.sql, which
-# notebook 02 needs before its section 6). This file runs everything in order.
+# notebook 02 needs before its section 6). This file runs everything in order,
+# up to the Test evaluation (notebooks 05 and 06).
 #
 # Notes
 #   * Connection settings come from .env (PGHOST, PGPORT, PGDATABASE, PGUSER,
@@ -13,6 +14,12 @@
 #   * Notebooks are executed into build/executed/, so the committed .ipynb files
 #     are never modified. Add "build/" to .gitignore.
 #   * Recipe lines must start with a TAB, not spaces.
+#   * Notebooks 05 and 06 have gates: they stop unless the lock files in docs/
+#     (phase5_baseline_lock.json, phase6_thresholds_lock.json and
+#     phase6_test_lock.json) are committed in git, so run them inside a git clone.
+#     They compare their results with those locks, so a changed result stops
+#     them. They are slow (notebook 05 about 12 to 35 minutes on a Windows
+#     laptop, notebook 06 about 15 minutes), so close memory-heavy programs.
 #   * Works on Mac/Linux (.venv/bin/python) and on Windows Git Bash
 #     (.venv/Scripts/python.exe). On Windows, GNU make is not installed with
 #     Git Bash: install it first (for example with Chocolatey, Scoop or winget)
@@ -35,7 +42,7 @@ NBRUN := $(PY) -m jupyter nbconvert --to notebook --execute \
 
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
-.PHONY: help check check-nb schema phase1 validate-phase1 split features phase2 phase3 phase4 all clean
+.PHONY: help check check-nb schema phase1 validate-phase1 split features phase2 phase3 phase4 phase5 phase6 all clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -73,7 +80,13 @@ phase3: check-nb ## Notebook 03: EDA, lag sweep, reverse-causation (runs 004, wr
 phase4: check-nb ## Notebook 04: features (runs 005 and 003b, writes outputs/)
 	@$(NBRUN) notebooks/04_phase4_features_merged.ipynb
 
-all: check schema phase1 phase2 phase3 phase4 ## Run everything in order, from schema to Phase 4
+phase5: check-nb ## Notebook 05: models on the validation folds (needs notebook 04 and the committed baseline lock; writes 4 phase5_* tables)
+	@$(NBRUN) notebooks/05_phase5_modeling_merged.ipynb
+
+phase6: check-nb ## Notebook 06: evaluation on the Test period (needs notebook 05 and the 3 committed locks; writes 11 phase6_* tables)
+	@$(NBRUN) notebooks/06_phase6_evaluation_merged.ipynb
+
+all: check schema phase1 phase2 phase3 phase4 phase5 phase6 ## Run everything in order, from schema to Phase 6
 
 clean: ## Delete the executed notebook copies in build/
 	rm -rf build
