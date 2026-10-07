@@ -5,7 +5,8 @@
 # Why this exists: notebooks 01-04 run most of the SQL, but two steps are not
 # in any notebook (the one-time schema, and sql/005_phase4_features.sql, which
 # notebook 02 needs before its section 6). This file runs everything in order,
-# up to the Test evaluation (notebooks 05 and 06).
+# up to the Test evaluation (notebooks 05 and 06) and the dashboard data export
+# (Phase 7). make dashboard then starts the dashboard.
 #
 # Notes
 #   * Connection settings come from .env (PGHOST, PGPORT, PGDATABASE, PGUSER,
@@ -20,6 +21,11 @@
 #     They compare their results with those locks, so a changed result stops
 #     them. They are slow (notebook 05 about 12 to 35 minutes on a Windows
 #     laptop, notebook 06 about 15 minutes), so close memory-heavy programs.
+#   * make phase7 exports the aggregated tables the dashboard reads to
+#     docs/dashboard_data (it stops if a table has county-level columns). Those
+#     files are committed, so re-export and commit them after every re-run of
+#     notebooks 05 and 06. make dashboard starts the dashboard (Ctrl+C stops it).
+#     It reads the database, or the snapshot if the database cannot be reached.
 #   * Works on Mac/Linux (.venv/bin/python) and on Windows Git Bash
 #     (.venv/Scripts/python.exe). On Windows, GNU make is not installed with
 #     Git Bash: install it first (for example with Chocolatey, Scoop or winget)
@@ -42,7 +48,7 @@ NBRUN := $(PY) -m jupyter nbconvert --to notebook --execute \
 
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
-.PHONY: help check check-nb schema phase1 validate-phase1 split features phase2 phase3 phase4 phase5 phase6 all clean
+.PHONY: help check check-nb schema phase1 validate-phase1 split features phase2 phase3 phase4 phase5 phase6 phase7 dashboard all clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -86,7 +92,14 @@ phase5: check-nb ## Notebook 05: models on the validation folds (needs notebook 
 phase6: check-nb ## Notebook 06: evaluation on the Test period (needs notebook 05 and the 3 committed locks; writes 11 phase6_* tables)
 	@$(NBRUN) notebooks/06_phase6_evaluation_merged.ipynb
 
-all: check schema phase1 phase2 phase3 phase4 phase5 phase6 ## Run everything in order, from schema to Phase 6
+phase7: check ## Export the dashboard data to docs/dashboard_data (needs notebooks 05 and 06; 18 aggregated tables and snapshot_info.json)
+	@$(PY) notebooks/07b_export_dashboard_data.py
+
+dashboard: ## Start the dashboard (database first, then docs/dashboard_data; Ctrl+C stops it)
+	@test -x $(PY) || { echo "Missing $(VENV)/bin/python or $(VENV)/Scripts/python.exe. Create the venv and run: pip install -r requirements.txt"; exit 1; }
+	@$(PY) -m streamlit run notebooks/07_phase7_dashboard.py
+
+all: check schema phase1 phase2 phase3 phase4 phase5 phase6 phase7 ## Run everything in order, from schema to the Phase 7 data export
 
 clean: ## Delete the executed notebook copies in build/
 	rm -rf build
