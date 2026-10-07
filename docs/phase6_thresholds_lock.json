@@ -1,0 +1,89 @@
+{
+  "purpose": "F1 cut-offs found on the Phase 5 validation predictions, written before Test was scored. A re-run applies these cut-offs unchanged.",
+  "validation_rows": 112734,
+  "validation_declines": 4252,
+  "library_versions": {
+    "python": "3.13.9",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1",
+    "platform": "Windows AMD64"
+  },
+  "feature_steps": {
+    "baseline": [
+      "momentum_1m",
+      "momentum_3m",
+      "momentum_6m"
+    ],
+    "step2_rate_level": [
+      "momentum_1m",
+      "momentum_3m",
+      "momentum_6m",
+      "mortgage_rate_level"
+    ],
+    "step3_rate_change": [
+      "momentum_1m",
+      "momentum_3m",
+      "momentum_6m",
+      "mortgage_rate_level",
+      "mortgage_rate_roc",
+      "rate_roc_x_momentum"
+    ]
+  },
+  "thresholds": {
+    "logreg|baseline": {
+      "threshold": 0.28050005573505504,
+      "val_precision": 0.41033672670321064,
+      "val_recall": 0.4929444967074318,
+      "val_f1": 0.447863247862752
+    },
+    "logreg|step2_rate_level": {
+      "threshold": 0.2572964902292658,
+      "val_precision": 0.4177984998986418,
+      "val_recall": 0.48471307619943554,
+      "val_f1": 0.44877517691839225
+    },
+    "logreg|step3_rate_change": {
+      "threshold": 0.23791861749021523,
+      "val_precision": 0.398300283286119,
+      "val_recall": 0.4960018814675447,
+      "val_f1": 0.441814182465202
+    },
+    "random_forest|baseline": {
+      "threshold": 0.3385948219428074,
+      "val_precision": 0.40388685780257844,
+      "val_recall": 0.49365004703668863,
+      "val_f1": 0.44427981796966065
+    },
+    "random_forest|step2_rate_level": {
+      "threshold": 0.3326655724865091,
+      "val_precision": 0.3801923076923077,
+      "val_recall": 0.4649576669802446,
+      "val_f1": 0.41832416419755836
+    },
+    "random_forest|step3_rate_change": {
+      "threshold": 0.33085225251509903,
+      "val_precision": 0.39555369127516776,
+      "val_recall": 0.4435559736594544,
+      "val_f1": 0.41818181818131983
+    },
+    "hist_gb|baseline": {
+      "threshold": 0.3894659892931262,
+      "val_precision": 0.4359499431171786,
+      "val_recall": 0.4506114769520226,
+      "val_f1": 0.44315947727485583
+    },
+    "hist_gb|step2_rate_level": {
+      "threshold": 0.27835343894122355,
+      "val_precision": 0.3285289747399703,
+      "val_recall": 0.5199905926622765,
+      "val_f1": 0.4026588963754133
+    },
+    "hist_gb|step3_rate_change": {
+      "threshold": 0.27534866951140213,
+      "val_precision": 0.3314135264110581,
+      "val_recall": 0.47365945437441204,
+      "val_f1": 0.38996998741359246
+    }
+  }
+}
