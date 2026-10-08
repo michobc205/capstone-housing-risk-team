@@ -48,7 +48,7 @@ NBRUN := $(PY) -m jupyter nbconvert --to notebook --execute \
 
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
-.PHONY: help check check-nb schema phase1 validate-phase1 split features phase2 phase3 phase4 phase5 phase6 phase7 dashboard all clean
+.PHONY: help check check-nb schema phase1 validate-phase1 split features phase2 phase3 phase4 checks phase5 phase6 phase7 dashboard all clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-16s %s\n", $$1, $$2}'
@@ -86,6 +86,9 @@ phase3: check-nb ## Notebook 03: EDA, lag sweep, reverse-causation (runs 004, wr
 phase4: check-nb ## Notebook 04: features (runs 005 and 003b, writes outputs/)
 	@$(NBRUN) notebooks/04_phase4_features_merged.ipynb
 
+checks: check ## Run sql/006_checks.sql: hard checks that stop on the first failure (needs notebook 04; read-only)
+	@$(PSQL) -f sql/006_checks.sql
+
 phase5: check-nb ## Notebook 05: models on the validation folds (needs notebook 04 and the committed baseline lock; writes 4 phase5_* tables)
 	@$(NBRUN) notebooks/05_phase5_modeling_merged.ipynb
 
@@ -99,7 +102,7 @@ dashboard: ## Start the dashboard (database first, then docs/dashboard_data; Ctr
 	@test -x $(PY) || { echo "Missing $(VENV)/bin/python or $(VENV)/Scripts/python.exe. Create the venv and run: pip install -r requirements.txt"; exit 1; }
 	@$(PY) -m streamlit run notebooks/07_phase7_dashboard.py
 
-all: check schema phase1 phase2 phase3 phase4 phase5 phase6 phase7 ## Run everything in order, from schema to the Phase 7 data export
+all: check schema phase1 phase2 phase3 phase4 checks phase5 phase6 phase7 ## Run everything in order, from schema to the Phase 7 data export
 
 clean: ## Delete the executed notebook copies in build/
 	rm -rf build
